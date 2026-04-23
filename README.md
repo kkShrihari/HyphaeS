@@ -169,8 +169,8 @@ mkdir my_soil_project && cd my_soil_project
 # 2. Generate config and samples template
 HyphaeS init
 
-# 3. Fill in samples.tsv with your sample paths
-nano samples.tsv
+# 3. Install required envs
+HyphaeS install-envs module --mod1
 
 # 4. Download databases (once per machine — ~9 GB, ~30-60 min)
 HyphaeS setup
