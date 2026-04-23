@@ -1,0 +1,7 @@
+name: eukdetect
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - eukdetect

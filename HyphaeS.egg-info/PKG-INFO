@@ -1,0 +1,449 @@
+Metadata-Version: 2.4
+Name: HyphaeS
+Version: 1.0.0
+Summary: Shotgun soil metagenomics pipeline for low-abundance fungi
+Home-page: https://github.com/yourname/HyphaeS
+Author: Shrihari Kamalan Kumaraguruparan
+Author-email: kkshrihari@gmail.com
+License: MIT
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Topic :: Scientific/Engineering :: Bio-Informatics
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: click>=8.0
+Requires-Dist: snakemake>=7.0.0
+Requires-Dist: pandas>=1.3
+Requires-Dist: numpy>=1.22.4
+Requires-Dist: matplotlib>=3.4
+Requires-Dist: pyyaml>=5.4
+Requires-Dist: jsonschema>=4.0
+Requires-Dist: pulp==2.7.0
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# HyphaeS — Hyphal Metagenomics Suite
+
+> Shotgun soil metagenomics · Low-abundance fungi (~1%) · Paired-end short reads · Snakemake
+
+---
+
+## Table of Contents
+1. [Overview](#1-overview)
+2. [System Requirements](#2-system-requirements)
+3. [Directory Structure](#3-directory-structure)
+4. [Installation](#4-installation)
+5. [Quick Start](#5-quick-start)
+6. [CLI Commands](#6-cli-commands)
+7. [config.yaml](#7-configyaml)
+8. [samples.tsv](#8-samplestsv)
+9. [Module 1 — Quality Control](#9-module-1--quality-control)
+10. [Validation and Checks](#10-validation-and-checks)
+11. [Logging and Resume](#11-logging-and-resume)
+12. [Databases](#12-databases)
+13. [Development Roadmap](#13-development-roadmap)
+
+---
+
+## 1. Overview
+
+**HyphaeS** is a modular Snakemake pipeline for shotgun soil metagenomics, built for low-abundance fungal communities (~1%). It covers the full analysis from raw reads to functional annotation across 5 independent modules.
+
+| Module | Name                  | Key Tools                                          |
+|--------|-----------------------|----------------------------------------------------|
+| mod1   | Quality Control       | FastQC, Trim Galore, BBDuk, Bowtie2, EukDetect, Nonpareil3, seqkit |
+| mod2   | Assembly              | SPAdes (metaSPAdes)                                |
+| mod3   | Taxonomy              | GTDB-Tk, Kraken2                                   |
+| mod4   | Binning               | MetaBAT2, MaxBin2, DASTool                         |
+| mod5   | Functional Annotation | eggNOG-mapper                                      |
+
+**Key features:**
+- One command install and setup
+- Single `config.yaml` with optimal defaults and warning ranges
+- 5 independent modules — each checks required inputs before starting
+- Auto-logging, auto-resume, `--rerun-incomplete` built-in
+- Public release ready — pip and Bioconda compatible
+
+---
+
+## 2. System Requirements
+
+| Requirement | Minimum       | Recommended                        |
+|-------------|---------------|------------------------------------|
+| RAM         | 64 GB         | 256 GB (SPAdes assembly needs it)  |
+| CPUs        | 16            | 144                                |
+| OS          | Ubuntu 18.04+ | Any Linux                          |
+| Disk        | 200 GB        | For databases + results            |
+| Python      | 3.8+          |                                    |
+| Snakemake   | 7.0.0+        |                                    |
+
+---
+
+## 3. Directory Structure
+
+### 3.1 Installed Package
+Lives inside your Python environment after `pip install hyphae-s`.
+
+```
+hyphae_s/
+├── __init__.py
+├── cli.py                          ← all HyphaeS commands (init, setup, run, check)
+├── setup.py                        ← pip install configuration
+│
+├── workflow/
+│   ├── Snakefile                   ← master file, imports all modules
+│   ├── rules/
+│   │   ├── common.smk              ← shared functions used by all modules
+│   │   ├── mod1_QC.smk             ← Module 1: Quality Control
+│   │   ├── mod2_assembly.smk       ← Module 2: Assembly
+│   │   ├── mod3_taxonomy.smk       ← Module 3: Taxonomy
+│   │   ├── mod4_binning.smk        ← Module 4: Binning
+│   │   └── mod5_annotation.smk     ← Module 5: Functional Annotation
+│   ├── envs/
+│   │   ├── mod1_QC.yaml            ← conda env: fastqc, trimgalore, bbtools, bowtie2...
+│   │   ├── mod2_assembly.yaml      ← conda env: spades
+│   │   ├── mod3_taxonomy.yaml      ← conda env: gtdbtk, kraken2
+│   │   ├── mod4_binning.yaml       ← conda env: metabat2, maxbin2, dastool
+│   │   └── mod5_annotation.yaml    ← conda env: eggnog-mapper
+│   ├── schemas/
+│   │   ├── config.schema.yaml      ← validates config.yaml values + warning ranges
+│   │   └── samples.schema.yaml     ← validates samples.tsv structure
+│   └── scripts/
+│       ├── common.py               ← shared Python helper functions
+│       └── retention_summary.py    ← generates mod1 retention TSV
+│
+└── templates/
+    ├── config.yaml                 ← template copied by HyphaeS init
+    └── samples.tsv                 ← template copied by HyphaeS init
+```
+
+### 3.2 User Project Folder
+Generated by `HyphaeS init` inside your project directory.
+
+```
+my_soil_project/
+├── config.yaml                     ← single config for all 5 modules
+├── samples.tsv                     ← sample names + R1/R2 paths
+│
+├── databases/                      ← populated by HyphaeS setup
+│   ├── .done/                      ← step markers for reliable resume
+│   ├── host/
+│   │   └── GRCh38_noalt_as/        ← Bowtie2 index (human host removal)
+│   └── eukdetect/
+│       ├── eukdetect_database_v2/  ← EukDetect marker genes + taxonomy
+│       └── eukdetect_config.yml    ← auto-generated EukDetect config
+│
+├── results/
+│   ├── mod1_QC/
+│   │   ├── 00_validation/
+│   │   ├── 01_rawQC/
+│   │   ├── 02_trimmed/
+│   │   ├── 03_nophix/
+│   │   ├── 03b_lowcomp/
+│   │   ├── 04_nohost/
+│   │   ├── 05_cleanQC/
+│   │   ├── 06_eukdetect/
+│   │   ├── 07_nonpareil/
+│   │   ├── 08_seqkit/
+│   │   ├── 09_retention/
+│   │   └── 99_multiqc_final/
+│   ├── mod2_assembly/
+│   ├── mod3_taxonomy/
+│   ├── mod4_binning/
+│   └── mod5_annotation/
+│
+└── logs/
+    ├── pipeline_mod1_20260419_143022.log   ← overall pipeline log (auto-generated)
+    ├── db_setup.log                        ← database download log (auto-generated)
+    └── mod1_QC/
+        ├── 02_trimmed/
+        │   └── Nr15.log                    ← Trim Galore output for sample Nr15
+        ├── 04_nohost/
+        │   └── Nr15.log                    ← Bowtie2 alignment rate for Nr15
+        └── ...                             ← one log per tool per sample
+```
+
+---
+
+## 4. Installation
+
+```bash
+# Option A — pip (once published to PyPI)
+pip install hyphae-s
+
+# Option B — conda (once published to Bioconda)
+conda install -c bioconda hyphae-s
+
+# Option C — from source (developers)
+git clone https://github.com/yourname/HyphaeS
+cd HyphaeS
+pip install -e .
+```
+
+> **Note:** All tool dependencies (Snakemake, BBDuk, Bowtie2, EukDetect, SPAdes, etc.) are installed automatically via conda environments in `workflow/envs/` — users install nothing manually.
+
+---
+
+## 5. Quick Start
+
+```bash
+# 1. Create and enter project folder
+mkdir my_soil_project && cd my_soil_project
+
+# 2. Generate config and samples template
+HyphaeS init
+
+# 3. Fill in samples.tsv with your sample paths
+nano samples.tsv
+
+# 4. Download databases (once per machine — ~9 GB, ~30-60 min)
+HyphaeS setup
+
+# 5. Dry run to check everything
+HyphaeS run mod1 --dry
+
+# 6. Run Module 1
+HyphaeS run mod1
+```
+
+---
+
+## 6. CLI Commands
+
+### Initialize project
+```bash
+HyphaeS init
+```
+Generates `config.yaml` and `samples.tsv` in the current folder with optimal defaults.
+
+### Download databases
+```bash
+HyphaeS setup                          # installs to ./databases/
+HyphaeS setup --db-dir /opt/databases  # installs to custom path
+```
+Automatically downloads, indexes, and patches `config.yaml` with correct paths. Zero manual steps.
+
+### Check inputs
+```bash
+HyphaeS check mod1   # validates config + samples.tsv paths
+HyphaeS check mod2   # checks mod1 outputs exist + above
+HyphaeS check mod3   # checks mod2 outputs exist + above
+HyphaeS check mod4   # checks mod3 outputs exist + above
+HyphaeS check mod5   # checks mod4 outputs exist + above
+```
+Warns and stops if required inputs are missing before wasting compute time.
+
+### Run modules
+```bash
+HyphaeS run mod1                # Quality Control
+HyphaeS run mod2                # Assembly
+HyphaeS run mod3                # Taxonomy
+HyphaeS run mod4                # Binning
+HyphaeS run mod5                # Functional Annotation
+HyphaeS run all                 # all 5 modules sequentially
+
+HyphaeS run mod1 --dry          # dry run — see what will execute
+HyphaeS run mod1 --force        # force rerun everything
+HyphaeS run mod1 --cores 32     # override thread count from config
+```
+
+> Every `HyphaeS run` automatically applies:
+> `--rerun-incomplete` · `--latency-wait 60` · `--keep-going` · timestamped log
+
+### Resume after interruption
+```bash
+HyphaeS run mod1    # just re-run — Snakemake detects completed steps and skips them
+```
+
+---
+
+## 7. config.yaml
+
+One file controls all 5 modules. Generated by `HyphaeS init`. Warning ranges are noted in comments.
+
+```yaml
+# ── GENERAL ──────────────────────────────────────────────────────────────────
+general:
+  threads: 16           # recommended: 16–144 | warning if < 8
+  outdir: results/
+  db_dir: databases/    # auto-filled by HyphaeS setup
+
+# ── MODULE 1: QUALITY CONTROL ─────────────────────────────────────────────────
+mod1_QC:
+  min_quality: 15       # Trim Galore Phred | warning if < 10
+  min_length: 50        # min read length after trim | warning if < 30
+  phix_k: 31            # BBDuk kmer for PhiX | do not change
+  entropy: 0.6          # low-complexity filter | range: 0.5–0.7
+  host_idx: ~           # auto-filled by HyphaeS setup
+  eukdetect_cfg: ~      # auto-filled by HyphaeS setup
+
+# ── MODULE 2: ASSEMBLY ────────────────────────────────────────────────────────
+mod2_assembly:
+  assembler: spades
+  min_contig_len: 1000  # warning if < 500
+
+# ── MODULE 3: TAXONOMY ────────────────────────────────────────────────────────
+mod3_taxonomy:
+  classifier: kraken2   # options: kraken2, gtdbtk
+
+# ── MODULE 4: BINNING ─────────────────────────────────────────────────────────
+mod4_binning:
+  min_completeness: 50  # DASTool cutoff | warning if < 40
+  max_contamination: 10 # DASTool cutoff | warning if > 15
+
+# ── MODULE 5: FUNCTIONAL ANNOTATION ──────────────────────────────────────────
+mod5_annotation:
+  eggnog_db: ~          # auto-filled by HyphaeS setup
+```
+
+---
+
+## 8. samples.tsv
+
+Generated by `HyphaeS init`. Fill in your sample names and paths to raw fastq files.
+
+```
+sample  r1                                    r2
+Nr15    /path/to/raw/Nr15_R1.fastq.gz        /path/to/raw/Nr15_R2.fastq.gz
+Nr16    /path/to/raw/Nr16_R1.fastq.gz        /path/to/raw/Nr16_R2.fastq.gz
+Nr17    /path/to/raw/Nr17_R1.fastq.gz        /path/to/raw/Nr17_R2.fastq.gz
+```
+
+`samples.schema.yaml` validates this file before every run — checks for:
+- Missing columns
+- Non-existent file paths
+- Duplicate sample names
+- Wrong file format
+
+---
+
+## 9. Module 1 — Quality Control
+
+**File:** `workflow/rules/mod1_QC.smk`  
+**Output:** `results/mod1_QC/`
+
+| Step | Rule | Tool | Key parameters |
+|------|------|------|----------------|
+| [0]  | validate_input       | Python     | Counts R1/R2 pairs — fails if unpaired or empty |
+| [1]  | fastqc_raw           | FastQC + MultiQC | Baseline QC documentation |
+| [2]  | trim_galore          | Trim Galore | Q15, min 50bp, tmpdir+mv pattern (avoids naming bugs) |
+| [3]  | remove_phix          | BBDuk      | k=31 hdist=1, ftm=5 for 151bp reads |
+| [3b] | remove_lowcomplexity | BBDuk      | entropy=0.6 — essential for soil samples |
+| [4]  | remove_host          | Bowtie2 + samtools | GRCh38, samtools extraction (not --un-conc-gz %) |
+| [5]  | fastqc_clean         | FastQC + MultiQC | Post-cleaning confirmation |
+| [6]  | eukdetect            | EukDetect  | Fungi screen, DB v2, ~1% expected in soil |
+| [7]  | nonpareil            | Nonpareil3 | R1 only, sample-specific tmpdir (not /tmp) |
+| [8]  | seqkit_stats         | seqkit     | Read count, GC%, length at raw/trimmed/clean stages |
+| [9]  | retention_summary    | Python     | TSV: reads retained, PhiX%, host%, nonpareil redundancy |
+| [99] | multiqc_final        | MultiQC    | Merged report across all steps and all samples |
+
+---
+
+## 10. Validation and Checks
+
+### config.schema.yaml
+Validates `config.yaml` before any module runs. Warns when values fall outside recommended ranges.
+
+### samples.schema.yaml
+Validates `samples.tsv` — checks columns, file paths, duplicates, format.
+
+### Inter-module input check
+```bash
+HyphaeS check mod2
+# Verifies: results/mod1_QC/04_nohost/{sample}_R1.fq.gz exists for all samples
+# If missing → warning printed, pipeline stops before wasting compute
+```
+`HyphaeS run modX` triggers `HyphaeS check modX` automatically — no need to run manually.
+
+---
+
+## 11. Logging and Resume
+
+### Auto-logging
+No manual `tee` or `2>&1` needed — handled automatically.
+
+| Command | Log destination |
+|---------|----------------|
+| `HyphaeS setup` | `databases/db_setup.log` |
+| `HyphaeS run mod1` | `logs/pipeline_mod1_YYYYMMDD_HHMMSS.log` |
+| Each rule | `logs/mod1_QC/{step}/{sample}.log` |
+
+### Two log levels
+- **Pipeline log** — big picture: which rules ran, timing, errors across all samples
+- **Rule logs** — tool output for one sample: alignment rates, read counts, warnings
+
+### Resume mechanism
+Three layers ensure correct resume:
+1. Snakemake skips rules whose output files already exist
+2. `--rerun-incomplete` reruns jobs with partial/corrupted output (e.g. server crash)
+3. `--keep-going` continues other samples if one fails
+
+### Database setup resume
+Uses `.done` marker files — not just file existence checks. If extraction is interrupted and produces a partial file, re-running `HyphaeS setup` detects the missing marker and reruns that step correctly.
+
+---
+
+## 12. Databases
+
+| Database | Size | Purpose | Source |
+|----------|------|---------|--------|
+| PhiX (BBDuk built-in) | 0 MB | Illumina spike-in removal | BBDuk keyword `phix` — no download |
+| Human GRCh38 Bowtie2 index | ~4 GB | Host read removal | Langmead AWS mirror |
+| EukDetect DB v2 | ~5 GB | Fungi detection — 521k marker genes | Figshare (Lind & Pollard 2021) |
+| BWA index (EukDetect) | built locally | Required by EukDetect internally | Built from EukDetect FNA |
+| ete3 taxa.sqlite | ~200 MB | Taxonomy lookup for EukDetect | NCBI via ete3 |
+
+**Total disk: ~10 GB**
+
+All downloaded and configured automatically by `HyphaeS setup`.
+
+---
+
+## 13. Development Roadmap
+
+### Build order
+| Step | Task |
+|------|------|
+| 1 | `setup.py` — pip installable package |
+| 2 | `cli.py` — `HyphaeS init / setup / check / run` via click |
+| 3 | `templates/config.yaml` — optimal defaults + warning ranges |
+| 4 | `templates/samples.tsv` — template with example rows |
+| 5 | `workflow/schemas/` — config and samples validation |
+| 6 | `workflow/rules/common.smk` — shared functions |
+| 7 | `workflow/rules/mod1_QC.smk` — already written, integrate |
+| 8 | `workflow/rules/mod2–mod5` — remaining modules |
+| 9 | `workflow/envs/*.yaml` — conda environments per module |
+| 10 | PyPI + Bioconda submission |
+
+### Release path
+```
+pip install -e .          ← local development testing
+python -m build           ← build distribution
+twine upload dist/*       ← publish to PyPI
+                          ← submit Bioconda recipe (1–2 week review)
+conda install -c bioconda hyphae-s   ← public release
+```
+
+> All tool dependencies are already in Bioconda — no blocker for acceptance.
+
+---
+
+## Citation
+
+If you use HyphaeS in your research, please cite:  
+*(citation to be added on publication)*
+
+## License
+
+MIT License — see [LICENSE](LICENSE) for details.

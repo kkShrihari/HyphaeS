@@ -1,0 +1,26 @@
+name: hyphae_mod1_QC
+channels:
+  - conda-forge
+  - agbiome
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - fastqc
+  - bowtie2
+  - samtools
+  - bwa
+  - seqkit
+  - bbtools
+  - trim-galore
+  - nonpareil
+  - pip:
+    - multiqc
+    - matplotlib
+    - numpy
+    - pandas
+    - ete3
+    - numpy
+    - matplotlib
+

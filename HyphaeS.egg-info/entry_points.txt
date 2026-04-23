@@ -1,0 +1,2 @@
+[console_scripts]
+HyphaeS = hyphaes.cli:main

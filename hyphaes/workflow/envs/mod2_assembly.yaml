@@ -1,0 +1,15 @@
+name: hyphae_mod2_assembly
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - spades=3.15.5
+  - quast=5.2.0
+  - bowtie2=2.5.3
+  - samtools=1.19
+  - coverm=0.7.0
+  - seqkit=2.7.0
+  - python>=3.8
+  - pandas
+  - biopython

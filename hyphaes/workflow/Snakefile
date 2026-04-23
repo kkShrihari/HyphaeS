@@ -1,0 +1,55 @@
+# =============================================================================
+# HyphaeS — Master Snakefile
+# =============================================================================
+
+import pandas as pd
+from pathlib import Path
+
+configfile: "config.yaml"
+
+# ── Load samples ──────────────────────────────────────────────────────────────
+samples_df = pd.read_csv("samples.tsv", sep="\t").set_index("sample", drop=False)
+SAMPLES    = samples_df.index.tolist()
+
+# ── Active module ─────────────────────────────────────────────────────────────
+ACTIVE = config.get("active_module", "mod1")
+
+# ── Import shared helpers ─────────────────────────────────────────────────────
+include: "rules/common.smk"
+
+# ── Import modules ────────────────────────────────────────────────────────────
+if ACTIVE in ["mod1", "all"]:
+    include: "rules/Module1_QC.smk"
+if ACTIVE in ["mod2", "all"]:
+    include: "rules/Module2_Assembly.smk"
+if ACTIVE in ["mod3", "all"]:
+    include: "rules/Module3_Taxonomy.smk"
+if ACTIVE in ["mod4", "all"]:
+    include: "rules/Module4_Binning.smk"
+if ACTIVE in ["mod5", "all"]:
+    include: "rules/Module5_Functional_annotation.smk"
+
+# ── Default target ────────────────────────────────────────────────────────────
+if ACTIVE == "mod1":
+    rule all:
+        input: rules.mod1_all.input
+elif ACTIVE == "mod2":
+    rule all:
+        input: rules.mod2_all.input
+elif ACTIVE == "mod3":
+    rule all:
+        input: rules.mod3_all.input
+elif ACTIVE == "mod4":
+    rule all:
+        input: rules.mod4_all.input
+elif ACTIVE == "mod5":
+    rule all:
+        input: rules.mod5_all.input
+elif ACTIVE == "all":
+    rule all:
+        input:
+            rules.mod1_all.input,
+            rules.mod2_all.input,
+            rules.mod3_all.input,
+            rules.mod4_all.input,
+            rules.mod5_all.input,

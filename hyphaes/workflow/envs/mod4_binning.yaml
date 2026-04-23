@@ -1,0 +1,25 @@
+name: hyphae_mod4_binning
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - eukrep=0.6.7
+  - tiara=1.0.3
+  - metabat2=2.15
+  - maxbin2=2.2.7
+  - concoct=1.1.0
+  - das_tool=1.1.6
+  - eukcc=2.1.0
+  - busco=5.6.1
+  - gunc=1.0.5
+  - kaiju=1.10.0
+  - epa-ng=0.3.8
+  - iqtree=2.2.6
+  - augustus=3.5.0
+  - antismash=7.1.0
+  - bowtie2=2.5.3
+  - samtools=1.19
+  - python>=3.8
+  - pandas
+  - biopython
